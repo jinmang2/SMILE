@@ -1,0 +1,17 @@
+{% extends 'layout.html' %}
+{% block content %}
+<div>
+    <form method="POST" action="/calculate">
+        <h1> Project: 네이버 댓글 데이터를 활용한 감정 분석 </h1>
+        <h3> Author: MyungHoon Jin</h3>
+        <h5> 분석할 텍스트를 입력해주세요.</h5>
+        <input type="text" name="sentence">
+        <button type="submit">감정분석하기</button>
+    </form>
+    <div>
+        <p>입력한 문장: {{ sentence }}</p>
+        <p>긍/부정: {{ result1 }}</p>
+        <p>다중 감정: {{ result2 }}</p>
+    </div>
+</div>
+{% endblock %}
