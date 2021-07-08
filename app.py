@@ -1,58 +1,77 @@
-import pickle
-import sys
+# coding=utf-8
+import re
+import json
+import numpy as np
+from functools import wraps
 from flask import (
-    Flask, render_template, redirect, request, url_for
+    Flask, request, Response, jsonify
 )
 from bert import tokenizer, device
 from bert import model as bert_model
-from bert import predict as predict1
-from jst import predict as predict2
+from bert import predict as binary_predict
+from jst import predict as multi_predict
 from jst import embedding, jst_mb_model
+
+
 app = Flask(__name__)
 
-@app.route('/')
-@app.route('/index')
-def index():
-    return render_template('index.html')
 
-@app.route('/info')
-def info():
-    return render_template('info.html', title='Info')
+class MyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.int):
+            return int(obj)
+        elif isinstance(obj, (np.float, np.float16, np.float32)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(MyEncoder, self).default(obj)
 
-@app.route('/about')
-def about():
-    return render_template('about.html', title='About')
 
-@app.route('/analyze')
-@app.route('/analyze/<sentence>')
-def inputTest(sentence=''):
-    if sentence is '':
-        result1 = sentence
-        result2 = sentence
-    else:
-        result1 = predict1(sentence, bert_model, device)
-        result2 = predict2(sentence, embedding, jst_mb_model)
-    return render_template(
-        'analyze.html',
-        sentence=sentence,
-        result1=result1,
-        result2=result2,
-        title='Analyze'
+def as_json(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        res = f(*args, **kwargs)
+        res = json.dumps(res, ensure_ascii=False, cls=MyEncoder).encode('utf-8')
+        return Response(res, content_type='application/json;charset=utf-8')
+    return decorated_function
+
+
+# @app.route('/predict', methods=['POST'])
+# def predict():
+#     return jsonify({'class_id': 'IMAGE_NET_XXX', 'class_name': 'Cat'})
+
+
+def clean(s):
+    s = s.replace("\n", "")
+    s = s.replace("\t", "")
+    s = re.sub(", +}", ",}", s)
+    s = re.sub(", +]", ",]", s)
+    s = s.replace(",}", "}")
+    s = s.replace(",]", ",]")
+    s = s.replace("'", "\"")
+    return s
+
+
+@app.route('/getSenti', methods=['POST'])
+@as_json
+def getSenti():
+    data = request.get_data().decode('utf-8')
+    data = clean(data)
+    txts = json.loads(data)
+    if 'texts' not in txts.keys():
+        raise AttributeError("Key:'texts' is essential!")
+    if not isinstance(txts['texts'], dict):
+        raise AttributeError("Values must be dictionary")
+    if not isinstance(list(txts['texts'].values())[0], str):
+        raise AttributeError("")
+    result1 = binary_predict(txts, bert_model, device)
+    result2 = multi_predict(txts, embedding, jst_mb_model)
+    results = dict(
+        binary_results=result1,
+        multi_results=result2
     )
-
-@app.route('/calculate', methods=['POST'])
-def calculate():
-    if request.method == 'POST':
-        temp = request.form['sentence']
-    else:
-        temp = None
-    print(f'cal: {temp}')
-    return redirect(
-        url_for(
-            'inputTest',
-            sentence=temp,
-        )
-    )
+    return results
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host="0.0.0.0", port="5000", debug=False)

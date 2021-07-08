@@ -11,7 +11,6 @@ from tensorflow.keras.preprocessing.sequence import pad_sequences
 
 
 def convert_input_data(sentences):
-
     # BERT의 토크나이저로 문장을 토큰으로 분리
     tokenized_texts = [tokenizer.tokenize(sent) for sent in sentences]
 
@@ -68,16 +67,21 @@ def test_sentences(sentences, model, device):
     return logits
 
 
-def predict(text, model, device, return_score=False):
-    logits = test_sentences([text], model, device)
-    if return_score:
-        return list(logits[0])
-    label = np.argmax(logits)
-    return '긍정' if label == 1 else '부정'
+def predict(inputs, model, device):
+    sentences = inputs['texts'].values()
+    logits = test_sentences(sentences, model, device)
+    arrs = np.exp(logits)
+    arrs = arrs / arrs.sum(axis=1).reshape(-1, 1)
+    return {
+        id:{'긍정':arr[1], '부정':arr[0]}
+        for id, arr in zip(inputs['texts'].keys(), arrs)
+    }
 
 
 with open('bertconfig200724.pkl', 'rb') as f:
     config = pickle.load(f)
+
+config.num_labels = 2
 
 GPU_NUM = 0
 device = torch.device(f'cuda:{GPU_NUM}' if torch.cuda.is_available() else 'cpu')

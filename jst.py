@@ -31,19 +31,20 @@ i2senti = {
 }
 
 
-def predict(text, embedding, model):
+def predict(inputs, embedding, model):
+    sentences = inputs['texts'].values()
     t = embedding.transform(
         [
-            spacer.space(
-                re.sub('[^ㄱ-ㅎㅏ-ㅣ가-힣]', ' ', text)
-            )
+            spacer.space(re.sub('[^ㄱ-ㅎㅏ-ㅣ가-힣]', ' ', sent))
+            for sent in sentences
         ]
     )
-    d = model.predict_proba(t)
+    ds = model.predict_proba(t)
 
-    return ' '.join(
-        [i2senti[i] + f'/{d[0][i]:.2%}' for i in np.argsort(d)[0][:4:-1]]
-    )
+    return {
+        i: {i2senti[i]: prob for i, prob in enumerate(d)}
+        for i, d in zip(inputs['texts'].keys(), ds)
+    }
 
 with open('gnb_clf_tfidf_20191112.pkl', 'rb') as f:
     jst_mb_model = pickle.load(f)
